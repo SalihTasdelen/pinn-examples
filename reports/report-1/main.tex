@@ -1,0 +1,248 @@
+\documentclass{beamer}
+\usetheme{Boadilla}
+\usepackage{minted}
+% Include the biblatex package with APA style
+\usepackage[
+backend=biber,
+style=apa,
+sorting=ynt
+]{biblatex}
+% Add the biblatex source file
+\addbibresource{PINN-Future-Study.bib}
+
+% Set title, author etc.
+\title{Studies on PINNs}
+\subtitle{The PINN Module and Future Studies}
+\author{A. Salih Taşdelen}
+\institute{METU}
+\date{\today}
+
+\begin{document}
+
+% Make title 
+\titlepage
+
+% Generate Table of Contents
+\begin{frame}{Outline}
+    \tableofcontents
+\end{frame}
+
+% Start the actual presentation
+\section{The Progress}
+
+\begin{frame}
+\frametitle{The Progress}
+\begin{itemize}
+    \item Reproduced the laminar flow over a cylinder \cite{rao_physics-informed_2020}.
+    \item Tried to understand the implementation and how it could be generalized. Since the source is in Tensorflow 1 \parencite{abadi_tensorflow_2016}, the user is the one who almost directly implements the computation graph.
+    \item Read other papers that implements PINNs in TF2:
+    \begin{itemize}
+        \item \textbf{DeepXDE} by \cite{lu_deepxde_2021}. (Residual Based Adaptive Refinement)
+        \item \textbf{Elvet} by \cite{araz_elvet_2021}. (Gradient Stack)
+        \item \textbf{dNNSolve} by \cite{guidetti_dnnsolve_2021}. (Fourier Neural Nets)
+        \item \textbf{IDRLnet} by \cite{peng_idrlnet_2021}. (Constraint Importance is proportional to its domain area)
+        \item \textbf{PyDEns} by \cite{koryagin_pydens_2019}. (Deep Galerkin)
+        \item \textbf{TensorDiffEq} by \cite{mcclenny_tensordiffeq_2021}. (\texttt{tf.gradients} instead of \texttt{tf.GradientTape})
+    \end{itemize}
+    
+\end{itemize}    
+\end{frame}
+
+\section{Physics Informed Neural Networks}
+
+\subsection{Problem in Mathematical Terms}
+
+\begin{frame}{Problem in Mathematical Terms I}
+\framesubtitle{The Domain}
+
+\begin{itemize}
+    \item Suppose we are given a problem in $D$ number of space time dimensions. Namely, we have time $t$, and $D-1$ number of spatial dimensions. Then, the domain can be represented as:
+    \begin{itemize}
+        \item $\mathrm{D} = [t_0, t_1] \times \Omega \subset \mathbb{R}^D$ where,
+        \item $\Omega \subseteq \mathbb{R}^{D-1}$, is the spatial domain for which,
+        \begin{itemize}
+            \item $\vec{x} = \begin{bmatrix} x_1 & x_2 & \cdots & x_{D-1}\end{bmatrix}^T$ is an element of $\Omega$.
+        \end{itemize}
+    \item We can represent the elements of space-time domain as a column vector $\varphi = \begin{bmatrix} t & x_1 & x_2 & \cdots & x_{D-1}\end{bmatrix}^T \in \mathbb{R}^D$.
+    \item With the above definitions, let us say that $\vec{u}(\varphi)$ is the desired solution of the problem.
+    \item Also let $\hat{u}(\varphi)$ be the solution approximated by the Neural Network.
+    \item We generalize the desired solution to be in any dimension, so that it could be the measure of various quantities like; velocity, pressure etc.
+    \end{itemize}
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}{Problem in Mathematical Terms II}
+\framesubtitle{Governing Equations - PDEs}    
+Let us look at the governing equations as well:
+\begin{itemize}
+    \item Partial Differential Equations:
+    \begin{itemize}
+        \item Suppose the PDEs have the form $f_i(\varphi, \vec{u}(\varphi)) := 0$, $\varphi \in T_\Omega \subseteq \mathrm{D}.$
+        \item If we have $n_\Omega$ number of PDEs their representation would be:
+        \begin{align}
+           \vec{f}(\varphi, \vec{u}(\varphi)) := \begin{bmatrix} f_1 & f_2 & \cdots & f_{n_\Omega}\end{bmatrix}^T = \vec{0} 
+        \end{align}
+        \item Let us denote the number of collocation points sampled for the PDEs as $N_\Omega$. Which is equivalent to say, $\left|T_\Omega\right|  = N_\Omega$.
+    \end{itemize}
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Problem in Mathematical Terms III}
+\framesubtitle{Governing Equations - ICs}
+
+\begin{itemize}
+    \item Initial Conditions:
+    \begin{itemize}
+        \item Suppose the ICs have the form $g_i(\varphi, \vec{u}(\varphi)) := 0$, $\varphi \in T_{0_i} \subseteq \mathrm{D}.$
+        \item $\left|T_{0_i}\right| = N_{0_i}$, number of collocation points samples for the $i^{th}$ IC.
+        \item For the initial condition we now that $t = t_0$, hence $T_{0_i} = \{t_0\} \times \mathrm{I}_i$.
+        \item The spatial domain of IC is $\mathrm{I}_i \subseteq \Omega$.
+        \item The spatial domains of initial conditions cannot coincide thus, $ \mathrm{I}_i \cap \mathrm{I}_j = \varnothing,\, i \neq j$.
+        \item Let us define the set for all the sets for IC domains, $\Gamma_0 = \{T_{0_i}\}_{1\leq i \leq n_0}$.
+        \item Since IC domains do not intersect we have the total number of IC collocation points as:
+        \begin{align*}
+            N_0 = \sum \limits_{i=1}^{n_0}\left|T_{0_i}\right|
+        \end{align*}
+    \end{itemize}
+\end{itemize}
+    
+\end{frame}
+
+\begin{frame}{Problem in Mathematical Terms IV}
+\framesubtitle{Governing Equations - BCs}
+
+\begin{itemize}
+    \item Boundary Conditions:
+    \begin{itemize}
+        \item Suppose the BCs have the form $h_i(\varphi, \vec{u}(\varphi)) := 0$, $\varphi \in T_{0_i} \subseteq \mathrm{D}.$
+        \item $\left|T_{{\partial\Omega}_i}\right| = N_{{\partial\Omega}_i}$, number of collocation points samples for the $i^{th}$ BC.
+        \item For the boundary conditions, $T_{{\partial\Omega}_i} = \left[t_0,t_1\right] \times \mathrm{B}_i$.
+        \item The spatial domain of BC is $\mathrm{B}_i \subseteq \partial\Omega$.
+        \item The spatial domains of boundary conditions cannot coincide thus, $ \mathrm{B}_i \cap \mathrm{B}_j = \varnothing,\, i \neq j$.
+        \item Let us define the set for all the sets for BC domains, $\Gamma_{\partial\Omega} = \{T_{{\partial\Omega}_i}\}_{1\leq i \leq n_{\partial\Omega}}$.
+        \item Since BC domains do not intersect we have the total number of BC collocation points as:
+        \begin{align*}
+            N_{\partial\Omega} = \sum \limits_{i=1}^{n_{\partial\Omega}}\left|T_{{\partial\Omega}_i}\right|
+        \end{align*}
+    \end{itemize}
+\end{itemize}
+    
+\end{frame}
+
+\begin{frame}{Problem in Mathematical Terms V}
+\framesubtitle{The Loss Functions}
+
+Suppose we use MSE to compute the Neural Networks Loss. 
+
+\begin{align}
+    \mathrm{L}_0 := \mathrm{L}_0(\Gamma_0, \theta) &= \sum \limits_{T_{0_i} \in \Gamma_0} \frac{1}{\left|T_{0_i}\right|} \sum \limits_{\varphi \in T_{0_i}} {\left|\left| g_i(\varphi, \hat{u}(\varphi)) \right|\right|}_2^2 \\
+    \mathrm{L}_{\partial\Omega} := \mathrm{L}_{\partial\Omega}(\Gamma_0, \theta) &= \sum \limits_{T_{{\partial\Omega}_i} \in \Gamma_{\partial\Omega}} \frac{1}{\left|T_{{\partial\Omega}_i}\right|} \sum \limits_{\varphi \in T_{{\partial\Omega}_i}} {\left|\left| h_i(\varphi, \hat{u}(\varphi)) \right|\right|}_2^2 \\
+    \mathrm{L}_\Omega := \mathrm{L}_\Omega(T_\Omega, \theta) &=  \frac{1}{\left|T_{\Omega}\right|} \sum \limits_{\varphi \in T_{\Omega}} {\left|\left| f_i(\varphi, \hat{u}(\varphi)) \right|\right|}_2^2 \\
+    L &= \alpha_0\mathrm{L}_0 + \alpha_{\partial\Omega}\mathrm{L}_{\partial\Omega} + \mathrm{L}_\Omega
+\end{align}
+
+\begin{block}{Residuals}
+\small
+Notice that the functions $f_i$, $g_i$,and $h_i$'s are the residuals that we are trying to minimize. In other words we want them to converge to $0$. Thus NNs loss can be written in terms of $\mathrm{L}(f_i(\varphi), \vec{0})$, $\mathrm{L}(g_i(\varphi), \vec{0})$, and $\mathrm{L}(h_i(\varphi), \vec{0})$.
+\end{block}
+
+\end{frame}
+
+\subsection{Generalization}
+
+\begin{frame}{Generalization}
+Instead of separately handling PDEs, BCs, and ICs we can further generalize the residuals. We can think of each equation as a constraint, then each constraint has a domain and a residual. This way we will have only a single summation as a loss function.
+
+\begin{align}
+    \mathrm{L} := \mathrm{L}(\Gamma, \theta) &= \sum \limits_{T_i \in \Gamma} \frac{1}{\left|T_i\right|} \sum \limits_{\varphi \in T_i} C(g_i(\varphi, \hat{u}(\varphi)), \vec{0})
+\end{align}
+
+\begin{block}{Loss}
+Here $C(y_{pred},y_{true})$ represents any loss function.
+\end{block}
+
+\end{frame}
+
+\section{Python Module}
+
+\subsection{How it Works}
+
+\begin{frame}{How it Works I}
+
+\begin{example}
+\small
+Let us consider the 1D Heat Conduction. The PDE, BCs, and IC are as follows:
+\begin{align*}
+\frac{\partial u}{\partial t} - 0.05\frac{\partial^2 u}{\partial x^2} = 0 \\
+u(0,x) = sin(3\pi x) \\
+\frac{\partial u}{\partial x}\bigg|_{\partial \Omega} = 0
+\end{align*}
+The analytical solution is: $u(t, x) = cos(3\pi x)e^{-.05(3\pi)^2t}$
+\end{example}
+
+\end{frame}
+
+\begin{frame}{How it Works II}
+\framesubtitle{Defining Constraints}
+\small
+\inputminted{python}{heat_constraints.py}
+\end{frame}
+
+\begin{frame}{How it Works III}
+\framesubtitle{Defining Model and Training}
+\small
+\inputminted{python}{heat_training.py}
+\end{frame}
+
+
+\begin{frame}{How it Works IV}
+\framesubtitle{Gradient Computation Algorithm}
+\tiny
+\inputminted{python}{gradient.py}
+\end{frame}
+
+\begin{frame}{How it Works V}
+\framesubtitle{Training Algorithm}
+\small
+\inputminted{python}{training.py}
+\end{frame}
+
+\subsection{New Features to be Added}
+
+\begin{frame}{New Features}
+
+\begin{itemize}
+    \item A seperate module for domain generation.
+    \item Efficient gradient calculation.
+    \item Ready to use constraints, Neumann BCs, Dirichlet BCs, etc.
+    \item Numeric derivative computation.
+\end{itemize}
+
+\end{frame}
+
+
+\section{Future Work}
+
+\begin{frame}{Future Work}
+
+\begin{itemize}
+    \item Residual based adaptive refinement.
+    \item Constraint weights proportional to its domain area.
+    \item Fourier Networks in combination to standard networks.
+    \item Dimensionless inputs and outputs.
+\end{itemize}
+
+\end{frame}
+
+
+
+% Dump all the references at once
+\begin{frame}[allowframebreaks]
+\frametitle{References}
+\tiny
+\nocite{*}
+\printbibliography
+\end{frame}
+
+\end{document}
